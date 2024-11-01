@@ -8,27 +8,27 @@ public class DungeonMapGenerator : MonoBehaviour
     public static DungeonMapGenerator Instance;
 
     public Tile WallTile;
-    public Tile CompensationTile;
+    public Tile TreasureChestTile;
 
     const int MAP_WIDTH = 200;
     const int MAP_HEIGHT = 200;
     const int CELLULAR_ITERATIONS = 20;  // 셀룰러 오토마타 스무딩 반복 횟수
-    const int MIN_ROOM_SIZE = 10;        // 방이 유효하다고 판단되는 최소 크기(CompensationTile 생성할 때 사용)
+    const int MIN_ROOM_SIZE = 10;        // 방이 유효하다고 판단되는 최소 크기(TreasureChestTile 생성할 때 사용)
 
-    public int TotalCompensation = 100; // 맵 전체에 분포될 보상의 수
+    public int TreasureChestTotal = 100; // 맵 전체에 분포될 보물상자의 수
 
     Tilemap tilemap;
     Dictionary<Vector3Int, Tile> mapTiles;           // 모든 타일의 현재 상태를 저장
-    HashSet<Vector3Int> safeZoneBoundary;           // 안전 지대의 좌표
+    HashSet<Vector3Int> safeZoneBoundary;           // 중앙 빈 구역의 좌표
     readonly System.Random random = new System.Random();
 
-    // 안전지대의 크기를 계산을 위한 값들
-    readonly int safeZoneRadius = 20;                // 중앙 안전 지대의 반경
+    // 빈 구역의 크기를 계산을 위한 값들
+    readonly int safeZoneRadius = 20;                // 중앙 빈 구역 지대의 반경
     readonly int safeZoneRadiusSquared;             // 더 빠른 거리 확인을 위한 제곱된 반경
-    readonly int outerSafeZoneRadius;               // 외부 안전 구역 경계의 반경
-    readonly int outerSafeZoneRadiusSquared;        // 더 빠른 확인을 위한 제곱된 외부 반경
-    readonly int mapCenterX = MAP_WIDTH / 2;        // 맵 중심의 X 좌표
-    readonly int mapCenterY = MAP_HEIGHT / 2;       // 맵 중심의 Y 좌표
+    readonly int outerSafeZoneRadius;               // 빈 부분의 경계 반경
+    readonly int outerSafeZoneRadiusSquared;
+    readonly int mapCenterX = MAP_WIDTH / 2;
+    readonly int mapCenterY = MAP_HEIGHT / 2;
 
     // 방향
     static readonly Vector3Int[] adjacentDirections =
@@ -65,14 +65,14 @@ public class DungeonMapGenerator : MonoBehaviour
     {
         tilemap = GetComponent<Tilemap>();
         InitializeRandomMap();           // 초기 랜덤 노이즈 생성
-        CreateSafeZone();               // 중앙 안전 구역 생성
+        CreateSafeZone();               // 중앙 빈 구역 생성
         ApplyCellularAutomata();        // 셀룰러 오토마타를 사용하여 맵 스무딩
-        DistributeCollectibles();       // 유효한 위치에 보상 배치
+        DistributeCollectibles();       // 유효한 위치에 보물상자 배치
         PrintMap();                    // 최종 맵 표시
     }
 
     /// <summary>
-    /// 장애물 밀도가 50%인 초기 무작위 노이즈 맵을 생성
+    /// 벽과 빈공간 밀도가 50%인 초기 무작위 노이즈 맵을 생성
     /// </summary>
     void InitializeRandomMap()
     {
@@ -106,10 +106,8 @@ public class DungeonMapGenerator : MonoBehaviour
                     tilePosition.x = x;
                     tilePosition.y = y;
 
-                    // 안전지대 경계 타일 건너뛰기
                     if (!safeZoneBoundary.Contains(tilePosition))
                     {
-                        // 이웃 수에 따라 셀룰러 오토마타 규칙을 적용
                         int adjacentObstacles = CountAdjacentObstacles(x, y);
                         nextIterationTiles[tilePosition] = adjacentObstacles > 5 ? WallTile :
                             adjacentObstacles < 3 ? null :
@@ -117,13 +115,11 @@ public class DungeonMapGenerator : MonoBehaviour
                     }
                     else
                     {
-                        // 안전 구역 경계 타일을 보존
                         nextIterationTiles[tilePosition] = mapTiles[tilePosition];
                     }
                 }
             }
 
-            // 다음 반복을 위해 타일 컬렉션을 교환
             Dictionary<Vector3Int, Tile> tempTiles = mapTiles;
             mapTiles = nextIterationTiles;
             nextIterationTiles = tempTiles;
@@ -131,11 +127,11 @@ public class DungeonMapGenerator : MonoBehaviour
     }
 
     /// <summary>
-    /// 주어진 위치에 인접한 장애물 타일의 수를 계산
+    /// 주어진 위치에 인접한 벽 타일의 수를 계산
     /// </summary>
     /// <param name="centerX">중심 타일의 X 좌표</param>
     /// <param name="centerY">중심 타일의 Y 좌표</param>
-    /// <returns>인접한 장애물 타일의 수</returns>
+    /// <returns>인접한 벽 타일의 수</returns>
     int CountAdjacentObstacles(int centerX, int centerY)
     {
         int obstacleCount = 0;
@@ -148,12 +144,12 @@ public class DungeonMapGenerator : MonoBehaviour
             {
                 if (x < 0 || x >= MAP_WIDTH || y < 0 || y >= MAP_HEIGHT)
                 {
-                    // 경계를 벗어난 위치를 장애물로 계산
+                    // 경계를 벗어난 위치를 벽으로 계산
                     obstacleCount++;
                 }
                 else if (x != centerX || y != centerY)
                 {
-                    // 유효한 위치에 있는 실제 장애물 수를 계산
+                    // 유효한 위치에 있는 실제 벽의 수를 계산
                     checkPosition.x = x;
                     checkPosition.y = y;
                     obstacleCount += mapTiles[checkPosition] == WallTile ? 1 : 0;
@@ -163,9 +159,6 @@ public class DungeonMapGenerator : MonoBehaviour
         return obstacleCount;
     }
 
-    /// <summary>
-    /// 맵 중앙에 던전으로 점진적으로 전환되는 안전 구역을 생성
-    /// </summary>
     void CreateSafeZone()
     {
         Vector3Int tilePosition = new();
@@ -185,18 +178,16 @@ public class DungeonMapGenerator : MonoBehaviour
 
                     int distanceSquared = x * x + y * y;
 
-                    // 내부 안전 구역을 완전히 비우기
                     if (distanceSquared < safeZoneRadiusSquared)
                     {
                         mapTiles[tilePosition] = null;
                     }
-                    // 무작위 클리어링으로 전환 영역 생성
                     else if (distanceSquared < outerSafeZoneRadiusSquared && random.NextDouble() < 0.4)
                     {
                         mapTiles[tilePosition] = null;
                     }
 
-                    // 안전지대 경계벽 생성
+                    // 원 구역 경계 생성
                     if (distanceSquared >= (safeZoneRadius - 1) * (safeZoneRadius - 1)
                         && distanceSquared < safeZoneRadiusSquared)
                     {
@@ -209,11 +200,11 @@ public class DungeonMapGenerator : MonoBehaviour
     }
 
     /// <summary>
-    /// 동굴의 유효한 방들에 보상을 분배
+    /// 동굴의 유효한 방들에 보물상자을 분배
     /// </summary>
     void DistributeCollectibles()
     {
-        // 유효한 방을 모두 찾음 (안전지대 및 작은 방 제외)
+        // 유효한 방을 모두 찾음 (중앙 빈 구역 및 작은 방 제외)
         var availableRooms = FindAvailableRooms()
             .Where(room => room.Count >= MIN_ROOM_SIZE && !IsSafeZoneOverlap(room))
             .ToList();
@@ -223,20 +214,18 @@ public class DungeonMapGenerator : MonoBehaviour
             return;
         }
 
-        // 균등한 분배를 위해 방당 보상을 계산
-        int remainingCollectibles = TotalCompensation;
+        int remainingCollectibles = TreasureChestTotal;
         int collectiblesPerRoom = Mathf.Max(1, remainingCollectibles / availableRooms.Count);
 
-        // 방 전체에 보상 배포
         foreach (var room in availableRooms)
         {
-            var roomTiles = room.ToArray(); // 더 빠른 랜덤 액세스를 위해 배열로 변환
+            var roomTiles = room.ToArray();
             for (int i = 0; i < collectiblesPerRoom && remainingCollectibles > 0; i++)
             {
                 Vector3Int randomPosition = roomTiles[random.Next(roomTiles.Length)];
                 if (HasRequiredSpacing(randomPosition))
                 {
-                    mapTiles[randomPosition] = CompensationTile;
+                    mapTiles[randomPosition] = TreasureChestTile;
                     remainingCollectibles--;
                 }
             }
@@ -244,7 +233,7 @@ public class DungeonMapGenerator : MonoBehaviour
     }
 
     /// <summary>
-    /// 보상 생성을 위한 충분한 빈 공간이 위치 주변에 있는지 확인
+    /// 보물상자 생성을 위한 충분한 빈 공간이 위치 주변에 있는지 확인
     /// </summary>
     bool HasRequiredSpacing(Vector3Int position)
     {

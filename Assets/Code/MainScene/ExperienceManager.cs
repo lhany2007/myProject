@@ -58,8 +58,7 @@ public class ExperienceManager : MonoBehaviour
                 return;
             }
             // 회전x, 스크립트가 할당되어 있는 오브젝트의 자식으로 생성
-            Instantiate(ExpOrbList[TimeIndex]
-                , SpawnLocation, Quaternion.identity, transform);
+            Instantiate(ExpOrbList[TimeIndex], SpawnLocation, Quaternion.identity, transform);
         }
     }
 
