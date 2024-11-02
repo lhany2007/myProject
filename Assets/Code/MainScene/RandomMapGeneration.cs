@@ -3,9 +3,9 @@ using UnityEngine.Tilemaps;
 using System.Collections.Generic;
 using System.Linq;
 
-public class DungeonMapGenerator : MonoBehaviour
+public class RandomMapGeneration : MonoBehaviour
 {
-    public static DungeonMapGenerator Instance;
+    public static RandomMapGeneration Instance;
 
     public Tile WallTile;
     public Tile TreasureChestTile;
@@ -18,7 +18,7 @@ public class DungeonMapGenerator : MonoBehaviour
     public int TreasureChestTotal = 100; // 맵 전체에 분포될 보물상자의 수
 
     Tilemap tilemap;
-    Dictionary<Vector3Int, Tile> mapTiles;           // 모든 타일의 현재 상태를 저장
+    public Dictionary<Vector3Int, Tile> MapTiles;           // 모든 타일의 현재 상태를 저장
     HashSet<Vector3Int> safeZoneBoundary;           // 중앙 빈 구역의 좌표
     readonly System.Random random = new System.Random();
 
@@ -42,14 +42,14 @@ public class DungeonMapGenerator : MonoBehaviour
     /// <summary>
     /// 미리 계산된 값과 자료구조로 맵 생성기를 초기화
     /// </summary>
-    public DungeonMapGenerator()
+    public RandomMapGeneration()
     {
         // 제곱 거리를 미리 계산
         safeZoneRadiusSquared = safeZoneRadius * safeZoneRadius;
         outerSafeZoneRadius = safeZoneRadius + 5;
         outerSafeZoneRadiusSquared = outerSafeZoneRadius * outerSafeZoneRadius;
 
-        mapTiles = new Dictionary<Vector3Int, Tile>(MAP_WIDTH * MAP_HEIGHT);
+        MapTiles = new Dictionary<Vector3Int, Tile>(MAP_WIDTH * MAP_HEIGHT);
         safeZoneBoundary = new HashSet<Vector3Int>();
     }
 
@@ -84,7 +84,7 @@ public class DungeonMapGenerator : MonoBehaviour
                 tilePosition.x = x;
                 tilePosition.y = y;
 
-                mapTiles[tilePosition] = random.NextDouble() < 0.5 ? WallTile : null;
+                MapTiles[tilePosition] = random.NextDouble() < 0.5 ? WallTile : null;
             }
         }
     }
@@ -111,17 +111,17 @@ public class DungeonMapGenerator : MonoBehaviour
                         int adjacentObstacles = CountAdjacentObstacles(x, y);
                         nextIterationTiles[tilePosition] = adjacentObstacles > 5 ? WallTile :
                             adjacentObstacles < 3 ? null :
-                            mapTiles[tilePosition];
+                            MapTiles[tilePosition];
                     }
                     else
                     {
-                        nextIterationTiles[tilePosition] = mapTiles[tilePosition];
+                        nextIterationTiles[tilePosition] = MapTiles[tilePosition];
                     }
                 }
             }
 
-            Dictionary<Vector3Int, Tile> tempTiles = mapTiles;
-            mapTiles = nextIterationTiles;
+            Dictionary<Vector3Int, Tile> tempTiles = MapTiles;
+            MapTiles = nextIterationTiles;
             nextIterationTiles = tempTiles;
         }
     }
@@ -152,7 +152,7 @@ public class DungeonMapGenerator : MonoBehaviour
                     // 유효한 위치에 있는 실제 벽의 수를 계산
                     checkPosition.x = x;
                     checkPosition.y = y;
-                    obstacleCount += mapTiles[checkPosition] == WallTile ? 1 : 0;
+                    obstacleCount += MapTiles[checkPosition] == WallTile ? 1 : 0;
                 }
             }
         }
@@ -180,18 +180,18 @@ public class DungeonMapGenerator : MonoBehaviour
 
                     if (distanceSquared < safeZoneRadiusSquared)
                     {
-                        mapTiles[tilePosition] = null;
+                        MapTiles[tilePosition] = null;
                     }
                     else if (distanceSquared < outerSafeZoneRadiusSquared && random.NextDouble() < 0.4)
                     {
-                        mapTiles[tilePosition] = null;
+                        MapTiles[tilePosition] = null;
                     }
 
                     // 원 구역 경계 생성
                     if (distanceSquared >= (safeZoneRadius - 1) * (safeZoneRadius - 1)
                         && distanceSquared < safeZoneRadiusSquared)
                     {
-                        mapTiles[tilePosition] = WallTile;
+                        MapTiles[tilePosition] = WallTile;
                         safeZoneBoundary.Add(tilePosition);
                     }
                 }
@@ -225,7 +225,7 @@ public class DungeonMapGenerator : MonoBehaviour
                 Vector3Int randomPosition = roomTiles[random.Next(roomTiles.Length)];
                 if (HasRequiredSpacing(randomPosition))
                 {
-                    mapTiles[randomPosition] = TreasureChestTile;
+                    MapTiles[randomPosition] = TreasureChestTile;
                     remainingCollectibles--;
                 }
             }
@@ -245,7 +245,7 @@ public class DungeonMapGenerator : MonoBehaviour
             {
                 checkPosition.x = position.x + x;
                 checkPosition.y = position.y + y;
-                if (!mapTiles.ContainsKey(checkPosition) || mapTiles[checkPosition] != null)
+                if (!MapTiles.ContainsKey(checkPosition) || MapTiles[checkPosition] != null)
                 {
                     return false;
                 }
@@ -288,7 +288,7 @@ public class DungeonMapGenerator : MonoBehaviour
             {
                 tilePosition.x = x;
                 tilePosition.y = y;
-                if (!visitedTiles.Contains(tilePosition) && mapTiles[tilePosition] == null)
+                if (!visitedTiles.Contains(tilePosition) && MapTiles[tilePosition] == null)
                 {
                     rooms.Add(MapConnectedRoom(tilePosition, visitedTiles));
                 }
@@ -317,7 +317,7 @@ public class DungeonMapGenerator : MonoBehaviour
             var currentPosition = tilesToCheck.Dequeue();
             if (!visitedTiles.Contains(currentPosition) &&
                 IsValidPosition(currentPosition) &&
-                mapTiles[currentPosition] == null)
+                MapTiles[currentPosition] == null)
             {
                 roomTiles.Add(currentPosition);
                 visitedTiles.Add(currentPosition);
@@ -345,13 +345,13 @@ public class DungeonMapGenerator : MonoBehaviour
     {
         return position.x >= 0 && position.x < MAP_WIDTH &&
                position.y >= 0 && position.y < MAP_HEIGHT &&
-               mapTiles.ContainsKey(position);
+               MapTiles.ContainsKey(position);
     }
 
     void PrintMap()
     {
         tilemap.ClearAllTiles();
-        foreach (var tileData in mapTiles)
+        foreach (var tileData in MapTiles)
         {
             if (tileData.Value != null)
             {
